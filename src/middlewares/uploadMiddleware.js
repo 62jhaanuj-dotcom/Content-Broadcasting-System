@@ -1,12 +1,18 @@
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
 const env = require("../config/env");
 
 const allowedImageTypes = ["image/jpeg", "image/png", "image/gif"];
+const uploadFolder = "src/uploads";
+
+if (!fs.existsSync(uploadFolder)) {
+  fs.mkdirSync(uploadFolder, { recursive: true });
+}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "src/uploads/");
+    cb(null, uploadFolder);
   },
   filename: (req, file, cb) => {
     cb(null, Date.now() + path.extname(file.originalname));
