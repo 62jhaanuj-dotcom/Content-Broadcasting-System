@@ -3,25 +3,29 @@ const {
   getTeacherLiveContentBySubject,
 } = require("../services/schedulingService");
 
-/**
- * ✅ REASON: PUBLIC API - Get live content for specific teacher
- * This endpoint requires NO authentication
- * Returns only approved content that's within time window
- * Implements subject-based rotation
- *
- * EDGE CASES HANDLED:
- * 1. No content available → returns "No content available"
- * 2. Content not scheduled (no start_time/end_time) → not shown
- * 3. Content outside time window → not shown
- * 4. No approved content → returns empty
- */
+const getTeacherIdFromParam = (value) => {
+  if (!value) return null;
+
+  if (!isNaN(value)) {
+    return parseInt(value);
+  }
+
+  const match = value.match(/^teacher-(\d+)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return parseInt(match[1]);
+};
+
+// Public route: get live content for one teacher.
 const getLiveContent = async (req, res, next) => {
   try {
-    const { teacherId } = req.params;
-    const { subject } = req.query; // Optional subject filter
+    const teacherId = getTeacherIdFromParam(req.params.teacherId);
+    const { subject } = req.query;
 
-    //  REASON: Validate teacher ID
-    if (!teacherId || isNaN(teacherId)) {
+    if (!teacherId) {
       return res.json({
         message: "No content available",
         data: null,
@@ -29,11 +33,10 @@ const getLiveContent = async (req, res, next) => {
     }
 
     const result = await getLiveContentService(
-      parseInt(teacherId),
+      teacherId,
       subject || null,
     );
 
-    //  REASON: Return consistent response format
     if (result.status === "no_content") {
       return res.json({
         message: "No content available",
@@ -51,23 +54,19 @@ const getLiveContent = async (req, res, next) => {
   }
 };
 
-/**
- * ✅ REASON: Get all active content for teacher grouped by subject
- * PUBLIC API - No authentication required
- * Shows what content is currently live organized by subject
- */
+// Public route: get all live content for a teacher.
 const getLiveContentByTeacher = async (req, res, next) => {
   try {
-    const { teacherId } = req.params;
+    const teacherId = getTeacherIdFromParam(req.params.teacherId);
 
-    if (!teacherId || isNaN(teacherId)) {
+    if (!teacherId) {
       return res.json({
         message: "No content available",
         data: {},
       });
     }
 
-    const result = await getTeacherLiveContentBySubject(parseInt(teacherId));
+    const result = await getTeacherLiveContentBySubject(teacherId);
 
     if (Object.keys(result).length === 0) {
       return res.json({
@@ -85,16 +84,13 @@ const getLiveContentByTeacher = async (req, res, next) => {
   }
 };
 
-/**
- * ✅ REASON: Get live content for specific teacher + subject
- * PUBLIC API - No authentication required
- * Subject-specific rotation
- */
+// Public route: get live content for one teacher and one subject.
 const getLiveContentBySubject = async (req, res, next) => {
   try {
-    const { teacherId, subject } = req.params;
+    const teacherId = getTeacherIdFromParam(req.params.teacherId);
+    const { subject } = req.params;
 
-    if (!teacherId || isNaN(teacherId)) {
+    if (!teacherId) {
       return res.json({
         message: "No content available",
         data: null,
@@ -109,7 +105,7 @@ const getLiveContentBySubject = async (req, res, next) => {
     }
 
     const result = await getLiveContentService(
-      parseInt(teacherId),
+      teacherId,
       subject.toLowerCase(),
     );
 

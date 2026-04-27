@@ -1,18 +1,24 @@
-/**
- *  REASON: Centralized error handling middleware
- * Catches all errors from routes and services
- * Returns consistent error response format
- * Logs errors for debugging
- */
-const errorMiddleware = (err, req, res, next) => {
-  console.error("❌ ERROR:", {
-    message: err.message,
-    stack: err.stack,
-    path: req.path,
-    method: req.method,
-  });
+const env = require("../config/env");
 
-  //  REASON: Handle specific error types for better UX
+const errorMiddleware = (err, req, res, next) => {
+  // In development, show full error details.
+  if (env.NODE_ENV === "development") {
+    console.error("ERROR:", {
+      message: err.message,
+      stack: err.stack,
+      path: req.path,
+      method: req.method,
+    });
+  } else {
+    console.error("ERROR:", {
+      message: err.message,
+      path: req.path,
+      method: req.method,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Return clear status codes for common errors.
   if (err.message && err.message.includes("already exists")) {
     return res.status(409).json({
       message: err.message,
@@ -53,7 +59,6 @@ const errorMiddleware = (err, req, res, next) => {
     });
   }
 
-  //  REASON: Handle multer file upload errors
   if (err.message && err.message.includes("jpg/png/gif")) {
     return res.status(400).json({
       message: "Only jpg, png, gif files allowed",
@@ -62,9 +67,14 @@ const errorMiddleware = (err, req, res, next) => {
     });
   }
 
-  //  REASON: Default error response
-  res.status(err.statusCode || 500).json({
-    message: err.message || "Internal server error",
+  const statusCode = err.statusCode || 500;
+  const isProduction = env.NODE_ENV === "production";
+
+  res.status(statusCode).json({
+    message:
+      isProduction && statusCode === 500
+        ? "Internal server error"
+        : err.message || "Internal server error",
     status: "error",
     code: "INTERNAL_ERROR",
   });

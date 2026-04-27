@@ -2,33 +2,33 @@
 CONTENT BROADCAST SYSTEM - ARCHITECTURE NOTES
 ================================================================================
 
-📋 PROJECT OVERVIEW
+ PROJECT OVERVIEW
 The Content Broadcast System is a backend service that enables teachers to upload
 subject-based educational content (images) and allows principals to approve it.
 Once approved, content is automatically broadcasted via public APIs with subject-based
 rotation scheduling, ensuring content is shown only within teacher-defined time windows.
 
 ================================================================================
-1️⃣ AUTHENTICATION & RBAC FLOW
+1 AUTHENTICATION & RBAC FLOW
 ================================================================================
 
 JWT-Based Authentication:
-✅ Flow:
-   1. User signup/login → credentials validated → JWT token generated
-   2. Token includes: user_id, role, email → 7-day expiry
+ Flow:
+   1. User signup/login  credentials validated  JWT token generated
+   2. Token includes: user_id, role, email  7-day expiry
    3. All protected endpoints require Authorization header: "Bearer <token>"
    4. AuthMiddleware validates token and extracts user info
 
 Role-Based Access Control (RBAC):
-✅ Two roles implemented:
+ Two roles implemented:
    - TEACHER: Can upload content, view own uploads, access public broadcast API
    - PRINCIPAL: Can view all content, approve/reject, manage workflow
 
-✅ Authorization Flow:
-   1. JWT token decoded → user role extracted
+ Authorization Flow:
+   1. JWT token decoded  user role extracted
    2. RoleMiddleware checks if user role matches endpoint requirement
-   3. If role mismatch → 403 Forbidden response
-   4. If valid → request proceeds to controller
+   3. If role mismatch  403 Forbidden response
+   4. If valid  request proceeds to controller
 
 Files Involved:
 - src/middlewares/authMiddleware.js - Token validation
@@ -36,72 +36,72 @@ Files Involved:
 - src/services/authService.js - JWT generation + password hashing (bcrypt)
 
 ================================================================================
-2️⃣ DATABASE DESIGN
+2 DATABASE DESIGN
 ================================================================================
 
 Core Tables:
 
-📌 USERS Table
-├─ id (PK) - serial
-├─ name - varchar(255)
-├─ email - varchar(255) UNIQUE
-├─ password_hash - varchar(255) bcrypt hashed
-├─ role - varchar(50) CHECK (teacher|principal)
-├─ created_at, updated_at - timestamps
+ USERS Table
+ id (PK) - serial
+ name - varchar(255)
+ email - varchar(255) UNIQUE
+ password_hash - varchar(255) bcrypt hashed
+ role - varchar(50) CHECK (teacher|principal)
+ created_at, updated_at - timestamps
 Indexes: email (for fast login lookup)
 
-📌 CONTENT Table (Main content storage)
-├─ id (PK) - serial
-├─ title - varchar(255) required
-├─ description - text optional
-├─ subject - varchar(100) required (maths, science, etc.)
-├─ file_path - varchar(500) path to uploaded file
-├─ file_type - varchar(50) (jpg, png, gif)
-├─ file_size - bigint bytes
-├─ uploaded_by (FK) - references users(id)
-├─ status - varchar(50) CHECK (pending|approved|rejected)
-├─ rejection_reason - text for audit trail
-├─ approved_by (FK) - principal who approved
-├─ approved_at - timestamp when approved
-├─ start_time - timestamp when content becomes active
-├─ end_time - timestamp when content becomes inactive
-├─ created_at, updated_at
+ CONTENT Table (Main content storage)
+ id (PK) - serial
+ title - varchar(255) required
+ description - text optional
+ subject - varchar(100) required (maths, science, etc.)
+ file_path - varchar(500) path to uploaded file
+ file_type - varchar(50) (jpg, png, gif)
+ file_size - bigint bytes
+ uploaded_by (FK) - references users(id)
+ status - varchar(50) CHECK (pending|approved|rejected)
+ rejection_reason - text for audit trail
+ approved_by (FK) - principal who approved
+ approved_at - timestamp when approved
+ start_time - timestamp when content becomes active
+ end_time - timestamp when content becomes inactive
+ created_at, updated_at
 Indexes: status, uploaded_by, subject, start_time+end_time (for range queries)
 
-📌 CONTENT_SLOTS Table (Subject organization)
-├─ id (PK) - serial
-├─ subject - varchar(100) UNIQUE
-├─ created_at
+ CONTENT_SLOTS Table (Subject organization)
+ id (PK) - serial
+ subject - varchar(100) UNIQUE
+ created_at
 Purpose: One record per subject for rotation management
 
-📌 SCHEDULE Table (Rotation scheduling)
-├─ id (PK) - serial
-├─ content_id (FK) - references content(id)
-├─ slot_id (FK) - references content_slots(id)
-├─ rotation_order - int sequence order
-├─ duration - int rotation duration in minutes (default 5)
-├─ created_at, updated_at
+ SCHEDULE Table (Rotation scheduling)
+ id (PK) - serial
+ content_id (FK) - references content(id)
+ slot_id (FK) - references content_slots(id)
+ rotation_order - int sequence order
+ duration - int rotation duration in minutes (default 5)
+ created_at, updated_at
 Indexes: content_id, slot_id (for rotation lookups)
 
 Relationships:
-USERS ← CONTENT (one teacher can have many content)
-USERS ← CONTENT (one principal can approve many content)
-CONTENT_SLOTS ← SCHEDULE (one subject can have many scheduled items)
-CONTENT ← SCHEDULE (one content can have one schedule entry)
+USERS  CONTENT (one teacher can have many content)
+USERS  CONTENT (one principal can approve many content)
+CONTENT_SLOTS  SCHEDULE (one subject can have many scheduled items)
+CONTENT  SCHEDULE (one content can have one schedule entry)
 
 ================================================================================
-3️⃣ SUBJECT-BASED ROTATION LOGIC (CRITICAL)
+3 SUBJECT-BASED ROTATION LOGIC (CRITICAL)
 ================================================================================
 
 Problem Statement:
 - Multiple teachers upload different content
 - Each subject (Maths, Science) has independent rotation
 - Content should rotate based on duration
-- Must respect time windows (start_time → end_time)
+- Must respect time windows (start_time  end_time)
 - Students access via public API for active content
 
 Solution Architecture:
-✅ Subject-isolated rotation:
+ Subject-isolated rotation:
    1. Content is grouped by subject
    2. Each subject maintains independent schedule
    3. Rotation cycle = sum of all durations for that subject
@@ -110,9 +110,9 @@ Solution Architecture:
 Example Rotation:
 
    Maths (Teacher 1):
-   - Content A (5 min): 0 ← → 5
-   - Content B (5 min): 5 ← → 10
-   - Content C (3 min): 10 ← → 13
+   - Content A (5 min): 0   5
+   - Content B (5 min): 5   10
+   - Content C (3 min): 10   13
    Total Cycle: 13 minutes
    
    If current_time = 7 minutes:
@@ -139,45 +139,45 @@ Algorithm Implementation (src/services/schedulingService.js):
 ```
 
 Edge Cases Handled:
-✅ No content available → returns "No content available"
-✅ Content outside time window → filtered out
-✅ No schedule defined → returns first content
-✅ Invalid subject → returns empty (not error)
+ No content available  returns "No content available"
+ Content outside time window  filtered out
+ No schedule defined  returns first content
+ Invalid subject  returns empty (not error)
 
 ================================================================================
-4️⃣ UPLOAD SYSTEM & FILE HANDLING
+4 UPLOAD SYSTEM & FILE HANDLING
 ================================================================================
 
 File Upload Flow:
 
 1. VALIDATION (uploadMiddleware - multer):
-   ✅ Allowed formats: jpg, png, gif
-   ✅ Max file size: 10MB
-   ✅ Required fields: file + title + subject
+    Allowed formats: jpg, png, gif
+    Max file size: 10MB
+    Required fields: file + title + subject
    
 2. STORAGE:
-   ✅ Method: Local disk storage
-   ✅ Location: src/uploads/
-   ✅ Filename format: timestamp + extension
-   ✅ Accessible via: GET /uploads/{filename}
+    Method: Local disk storage
+    Location: src/uploads/
+    Filename format: timestamp + extension
+    Accessible via: GET /uploads/{filename}
 
 3. METADATA TRACKING:
-   ✅ file_path: Full path to uploaded file
-   ✅ file_type: MIME type (image/jpeg, etc.)
-   ✅ file_size: File size in bytes
-   ✅ file_name: Original filename for reference
+    file_path: Full path to uploaded file
+    file_type: MIME type (image/jpeg, etc.)
+    file_size: File size in bytes
+    file_name: Original filename for reference
 
 Middleware Stack for Upload:
 
 ```
 POST /api/content/upload
-  ↓
-authMiddleware (verify token) ✓
-  ↓
-roleMiddleware("teacher") (verify role) ✓
-  ↓
-upload.single("file") (multer validation) ✓
-  ↓
+  
+authMiddleware (verify token) 
+  
+roleMiddleware("teacher") (verify role) 
+  
+upload.single("file") (multer validation) 
+  
 contentController.uploadContent (business logic)
 ```
 
@@ -196,19 +196,19 @@ If startTime/endTime provided:
 ```
 
 ================================================================================
-5️⃣ CONTENT APPROVAL WORKFLOW
+5 CONTENT APPROVAL WORKFLOW
 ================================================================================
 
-Content Lifecycle: UPLOADED → PENDING → APPROVED/REJECTED
+Content Lifecycle: UPLOADED  PENDING  APPROVED/REJECTED
 
 State Diagram:
 
-   ┌─────────────┐
-   │   PENDING   │ (Initial state after upload)
-   └──────┬──────┘
-          │
-     ┌────┴────┐
-     ↓         ↓
+   
+      PENDING    (Initial state after upload)
+   
+          
+     
+              
  APPROVED   REJECTED
  (goes live) (stores reason)
 
@@ -226,44 +226,44 @@ Approval Workflow:
 
 3. PRINCIPAL APPROVES:
    - PUT /api/approval/{id}/approve
-   - Updates: status → "approved"
-   - Sets: approved_by → principal_id
-   - Sets: approved_at → current_timestamp
+   - Updates: status  "approved"
+   - Sets: approved_by  principal_id
+   - Sets: approved_at  current_timestamp
    - Content becomes eligible for broadcast
 
 4. PRINCIPAL REJECTS:
    - PUT /api/approval/{id}/reject (body: { reason })
-   - Updates: status → "rejected"
-   - Sets: rejection_reason → provided reason
+   - Updates: status  "rejected"
+   - Sets: rejection_reason  provided reason
    - Content NOT eligible for broadcast
    - Reason visible to teacher
 
 Audit Trail Maintained:
-✅ approved_by: Which principal approved
-✅ approved_at: When it was approved
-✅ rejection_reason: Why it was rejected (if rejected)
-✅ created_at: When uploaded
+ approved_by: Which principal approved
+ approved_at: When it was approved
+ rejection_reason: Why it was rejected (if rejected)
+ created_at: When uploaded
 
 ================================================================================
-6️⃣ BROADCASTING & PUBLIC API
+6 BROADCASTING & PUBLIC API
 ================================================================================
 
 Public Endpoints (NO AUTHENTICATION REQUIRED):
 
 1. GET /api/broadcast/live/:teacherId
-   ✅ Returns currently active content for teacher
-   ✅ Respects subject-based rotation
-   ✅ Only shows approved + within time window
-   ✅ Query param: ?subject=maths (optional, for specific subject)
+    Returns currently active content for teacher
+    Respects subject-based rotation
+    Only shows approved + within time window
+    Query param: ?subject=maths (optional, for specific subject)
 
 2. GET /api/broadcast/teacher/:teacherId
-   ✅ Returns all active content grouped by subject
-   ✅ Shows rotation info per subject
-   ✅ Useful for listing all live content
+    Returns all active content grouped by subject
+    Shows rotation info per subject
+    Useful for listing all live content
 
 3. GET /api/broadcast/live/:teacherId/:subject
-   ✅ Subject-specific rotation
-   ✅ Only shows content for specified subject
+    Subject-specific rotation
+    Only shows content for specified subject
 
 Response Format:
 
@@ -313,53 +313,47 @@ Caching Considerations (Future Enhancement):
 - Trade-off: Slight delay vs. reduced DB queries
 
 ================================================================================
-7️⃣ FOLDER STRUCTURE & ORGANIZATION
+7 FOLDER STRUCTURE & ORGANIZATION
 ================================================================================
 
 src/
-├── config/
-│   ├── db.js           - PostgreSQL connection pool
-│   ├── env.js          - Environment variables
-│   └── schema.sql      - Database initialization
-│
-├── models/             - Data access layer (queries)
-│   ├── userModel.js
-│   ├── contentModel.js
-│   ├── scheduleModel.js
-│   └── contentSlotModel.js
-│
-├── controllers/        - Business logic (route handlers)
-│   ├── authController.js
-│   ├── contentController.js
-│   ├── approvalController.js
-│   └── broadcastController.js
-│
-├── services/           - Complex business logic
-│   ├── authService.js
-│   ├── schedulingService.js
-│   └── contentService.js
-│
-├── routes/             - API endpoint definitions
-│   ├── authRoutes.js
-│   ├── contentRoutes.js
-│   ├── approvalRoutes.js
-│   └── broadcastRoutes.js
-│
-├── middlewares/        - Request interceptors
-│   ├── authMiddleware.js
-│   ├── errorMiddleware.js
-│   ├── roleMiddleware.js
-│   └── uploadMiddleware.js
-│
-├── utils/              - Utilities & constants
-│   ├── constants.js
-│   ├── jwt.js
-│   └── time.js
-│
-├── uploads/            - Local file storage
-│
-├── app.js              - Express app setup
-└── server.js           - Entry point
+ config/
+    db.js           - PostgreSQL connection pool
+    env.js          - Environment variables
+    schema.sql      - Database initialization
+
+ models/             - Data access layer (queries)
+    userModel.js
+    contentModel.js
+    scheduleModel.js
+    contentSlotModel.js
+
+ controllers/        - Business logic (route handlers)
+    authController.js
+    contentController.js
+    approvalController.js
+    broadcastController.js
+
+ services/           - Complex business logic
+    authService.js
+    schedulingService.js
+
+ routes/             - API endpoint definitions
+    authRoutes.js
+    contentRoutes.js
+    approvalRoutes.js
+    broadcastRoutes.js
+
+ middlewares/        - Request interceptors
+    authMiddleware.js
+    errorMiddleware.js
+    roleMiddleware.js
+    uploadMiddleware.js
+
+ uploads/            - Local file storage
+
+ app.js              - Express app setup
+ server.js           - Entry point
 
 Separation of Concerns:
 - Models: Pure database queries
@@ -369,26 +363,26 @@ Separation of Concerns:
 - Middlewares: Cross-cutting concerns
 
 ================================================================================
-8️⃣ MIDDLEWARE USAGE & ORDER
+8 MIDDLEWARE USAGE & ORDER
 ================================================================================
 
 Middleware Stack Order:
 
 ```
 App.js
-  ↓
+  
 cors() - Enable cross-origin requests
-  ↓
+  
 express.json() - Parse JSON bodies
-  ↓
+  
 Logger middleware - Log all requests
-  ↓
+  
 Static middleware - Serve uploaded files
-  ↓
+  
 Routes (each route has its own middleware stack)
-  ↓
+  
 404 handler - Catch undefined routes
-  ↓
+  
 errorMiddleware - Final error handler (MUST BE LAST)
 ```
 
@@ -396,14 +390,14 @@ Protected Route Example:
 
 ```
 POST /api/content/upload
-  ↓
-authMiddleware ← Validates JWT token
-  ↓
-roleMiddleware("teacher") ← Checks if user role = teacher
-  ↓
-upload.single("file") ← Validates file upload
-  ↓
-contentController.uploadContent ← Business logic
+  
+authMiddleware  Validates JWT token
+  
+roleMiddleware("teacher")  Checks if user role = teacher
+  
+upload.single("file")  Validates file upload
+  
+contentController.uploadContent  Business logic
 ```
 
 Custom Middlewares:
@@ -432,25 +426,25 @@ Custom Middlewares:
    - Maps specific errors to appropriate HTTP status codes
 
 ================================================================================
-9️⃣ ERROR HANDLING & VALIDATION
+9 ERROR HANDLING & VALIDATION
 ================================================================================
 
 Input Validation:
 
 Authentication:
-✅ Email format validation (regex)
-✅ Password min 6 characters
-✅ Role must be teacher|principal
+ Email format validation (regex)
+ Password min 6 characters
+ Role must be teacher|principal
 
 Content Upload:
-✅ Title: Required, non-empty
-✅ Subject: Required, non-empty
-✅ File: Required, format check
-✅ TimeRange: If provided, valid ISO format + endTime > startTime
+ Title: Required, non-empty
+ Subject: Required, non-empty
+ File: Required, format check
+ TimeRange: If provided, valid ISO format + endTime > startTime
 
 Approval:
-✅ Rejection reason: Required for reject endpoint
-✅ Content exists: Verify ID before approving
+ Rejection reason: Required for reject endpoint
+ Content exists: Verify ID before approving
 
 HTTP Status Codes Used:
 
@@ -482,45 +476,45 @@ Example Error Codes:
 - INVALID_FILE_TYPE - Wrong file format
 
 ================================================================================
-🔟 SECURITY MEASURES
+ SECURITY MEASURES
 ================================================================================
 
 Authentication:
-✅ Password hashing: bcrypt with 10 salt rounds
-✅ JWT tokens: Signed with JWT_SECRET (7-day expiry)
-✅ Token validation: On every protected route
+ Password hashing: bcrypt with 10 salt rounds
+ JWT tokens: Signed with JWT_SECRET (7-day expiry)
+ Token validation: On every protected route
 
 Authorization:
-✅ Role-based access: RoleMiddleware enforces
-✅ Resource ownership: Teachers can only see their own content
+ Role-based access: RoleMiddleware enforces
+ Resource ownership: Teachers can only see their own content
 
 Data Validation:
-✅ Input validation: All endpoints validate input
-✅ File validation: Type and size checked by multer
-✅ Email format: Regex validation
+ Input validation: All endpoints validate input
+ File validation: Type and size checked by multer
+ Email format: Regex validation
 
 Sensitive Data Protection:
-✅ Password: Never returned in responses
-✅ Rejection reason: Only visible to teacher + principal
-✅ Approved by: Only visible to admin
+ Password: Never returned in responses
+ Rejection reason: Only visible to teacher + principal
+ Approved by: Only visible to admin
 
 SQL Injection Prevention:
-✅ Parameterized queries: All DB queries use $1, $2 placeholders
-✅ No string concatenation in SQL
+ Parameterized queries: All DB queries use $1, $2 placeholders
+ No string concatenation in SQL
 
 CORS Configuration:
-✅ Allow all origins (for public API)
-✅ Can be restricted to specific domains in production
+ Allow all origins (for public API)
+ Can be restricted to specific domains in production
 
 ================================================================================
-1️⃣1️⃣ SCALABILITY APPROACH
+11 SCALABILITY APPROACH
 ================================================================================
 
 Current Implementation (MVP):
-✅ Single server (Express)
-✅ PostgreSQL database
-✅ Local file storage
-✅ In-memory JWT validation
+ Single server (Express)
+ PostgreSQL database
+ Local file storage
+ In-memory JWT validation
 
 Performance Optimizations (Future):
 
@@ -563,35 +557,35 @@ Estimated Capacity (Single Server):
 - 1000+ teachers broadcasting simultaneously
 
 ================================================================================
-1️⃣2️⃣ ASSUMPTIONS & DESIGN DECISIONS
+12 ASSUMPTIONS & DESIGN DECISIONS
 ================================================================================
 
-1. ✅ File Storage: Local disk (not S3)
+1.  File Storage: Local disk (not S3)
    Reason: Simplicity for MVP, easy to migrate later
 
-2. ✅ Rotation by Time: Global time-based (not per-session)
+2.  Rotation by Time: Global time-based (not per-session)
    Reason: Consistent experience across users, fair rotation
 
-3. ✅ Approval Required: All content must be approved
+3.  Approval Required: All content must be approved
    Reason: Content quality control, security
 
-4. ✅ Time Zone: UTC (ISO format dates)
+4.  Time Zone: UTC (ISO format dates)
    Reason: Consistent across regions, no ambiguity
 
-5. ✅ Subject Isolation: Independent rotations per subject
+5.  Subject Isolation: Independent rotations per subject
    Reason: Teacher controls subject separately
 
-6. ✅ No Content Versioning: Replace on reupload
+6.  No Content Versioning: Replace on reupload
    Reason: Simplicity, can add later if needed
 
-7. ✅ JWT over Sessions: Stateless authentication
+7.  JWT over Sessions: Stateless authentication
    Reason: Scalable, no session storage needed
 
-8. ✅ Soft Delete: Not implemented (hard delete)
+8.  Soft Delete: Not implemented (hard delete)
    Reason: Can add audit trail later if needed
 
 ================================================================================
-1️⃣3️⃣ API ENDPOINTS SUMMARY
+13 API ENDPOINTS SUMMARY
 ================================================================================
 
 Authentication:

@@ -1,5 +1,8 @@
 const multer = require("multer");
 const path = require("path");
+const env = require("../config/env");
+
+const allowedImageTypes = ["image/jpeg", "image/png", "image/gif"];
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -12,12 +15,12 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: env.MAX_FILE_SIZE },
   fileFilter: (req, file, cb) => {
-    const allowed = ["image/jpeg", "image/png", "image/gif"];
-    if (!allowed.includes(file.mimetype)) {
+    if (!allowedImageTypes.includes(file.mimetype)) {
       return cb(new Error("Only jpg/png/gif allowed"));
     }
+
     cb(null, true);
   },
 });

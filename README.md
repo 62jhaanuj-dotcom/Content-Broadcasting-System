@@ -1,28 +1,28 @@
-# 📱 Content Broadcast System - Backend API
+#  Content Broadcast System - Backend API
 
 > A modern backend system for distributing educational content to students with teacher-controlled scheduling and principal-managed approvals.
 
-## 🎯 Quick Overview
+##  Quick Overview
 
-Teachers upload subject-based educational content → Principals approve it → System broadcasts via public API with rotation scheduling → Students access content within defined time windows.
-
----
-
-## 🚀 Features
-
-✅ **JWT Authentication** - Secure token-based auth with role-based access  
-✅ **Role-Based Access Control** - Teacher & Principal roles with strict permissions  
-✅ **Content Upload** - JPG/PNG/GIF images with metadata tracking  
-✅ **Approval Workflow** - Content goes through pending → approved/rejected states  
-✅ **Subject-Based Rotation** - Independent rotation schedule per subject  
-✅ **Time-Window Scheduling** - Content visible only within teacher-defined periods  
-✅ **Public Broadcasting API** - Students access approved content via stateless endpoints  
-✅ **Error Handling** - Centralized error middleware with structured responses  
-✅ **Input Validation** - Comprehensive validation at all endpoints
+Teachers upload subject-based educational content  Principals approve it  System broadcasts via public API with rotation scheduling  Students access content within defined time windows.
 
 ---
 
-## 📋 Tech Stack
+##  Features
+
+ **JWT Authentication** - Secure token-based auth with role-based access  
+ **Role-Based Access Control** - Teacher & Principal roles with strict permissions  
+ **Content Upload** - JPG/PNG/GIF images with metadata tracking  
+ **Approval Workflow** - Content goes through pending  approved/rejected states  
+ **Subject-Based Rotation** - Independent rotation schedule per subject  
+ **Time-Window Scheduling** - Content visible only within teacher-defined periods  
+ **Public Broadcasting API** - Students access approved content via stateless endpoints  
+ **Error Handling** - Centralized error middleware with structured responses  
+ **Input Validation** - Comprehensive validation at all endpoints
+
+---
+
+##  Tech Stack
 
 | Component      | Technology                |
 | -------------- | ------------------------- |
@@ -35,7 +35,7 @@ Teachers upload subject-based educational content → Principals approve it → 
 
 ---
 
-## 📦 Installation & Setup
+##  Installation & Setup
 
 ### 1. Prerequisites
 
@@ -107,7 +107,7 @@ Expected output:
 
 ---
 
-## 📚 API Documentation
+##  API Documentation
 
 ### Authentication Endpoints
 
@@ -184,6 +184,7 @@ Fields:
   - description: "Important questions" (optional)
   - startTime: "2026-04-27T10:00:00Z" (optional)
   - endTime: "2026-04-27T12:00:00Z" (optional)
+  - rotationDuration: 5 (optional, minutes, default 5)
 ```
 
 **Response (201):**
@@ -202,7 +203,12 @@ Fields:
     "status": "pending",
     "start_time": "2026-04-27T10:00:00Z",
     "end_time": "2026-04-27T12:00:00Z",
-    "created_at": "2026-04-26T14:30:00Z"
+    "created_at": "2026-04-26T14:30:00Z",
+    "schedule": {
+      "slot_id": 1,
+      "rotation_order": 1,
+      "duration": 5
+    }
   }
 }
 ```
@@ -318,6 +324,12 @@ Content-Type: application/json
 GET /api/broadcast/live/1
 ```
 
+Assignment-style alias also works:
+
+```http
+GET /content/live/teacher-1
+```
+
 **Response (200):**
 
 ```json
@@ -342,6 +354,12 @@ GET /api/broadcast/live/1
 
 ```http
 GET /api/broadcast/live/1/maths
+```
+
+Assignment-style alias also works:
+
+```http
+GET /content/live/teacher-1/maths
 ```
 
 #### Get All Live Content by Teacher
@@ -381,11 +399,11 @@ GET /api/broadcast/teacher/1
 
 ---
 
-## 🔄 Content Lifecycle
+##  Content Lifecycle
 
 ```
 1. UPLOAD
-   Teacher uploads content → status = "pending"
+   Teacher uploads content  status = "pending"
    Content visible only to teacher & principal
 
 2. PENDING
@@ -396,7 +414,7 @@ GET /api/broadcast/teacher/1
     - Approver tracked: approved_by
     - Timestamp tracked: approved_at
     - Becomes eligible for broadcasting
-    - Respects start_time → end_time window
+    - Respects start_time  end_time window
 
 3b. REJECTED (Content archived)
     - Status: "rejected"
@@ -407,7 +425,7 @@ GET /api/broadcast/teacher/1
 
 ---
 
-## 🔄 Rotation Logic
+##  Rotation Logic
 
 ### How Subject-Based Rotation Works
 
@@ -415,15 +433,15 @@ Each subject has its own independent rotation cycle:
 
 ```
 Maths Rotation (Total: 13 minutes):
-├─ Content A: 0-5 min (5 min duration)
-├─ Content B: 5-10 min (5 min duration)
-└─ Content C: 10-13 min (3 min duration)
-   ↓ cycles back to Content A
+ Content A: 0-5 min (5 min duration)
+ Content B: 5-10 min (5 min duration)
+ Content C: 10-13 min (3 min duration)
+    cycles back to Content A
 
 Science Rotation (Independent):
-├─ Content X: 0-7 min (7 min duration)
-└─ Content Y: 7-12 min (5 min duration)
-   ↓ cycles back to Content X
+ Content X: 0-7 min (7 min duration)
+ Content Y: 7-12 min (5 min duration)
+    cycles back to Content X
 ```
 
 **Algorithm:**
@@ -434,13 +452,13 @@ current_position = current_time_minutes % total_cycle_duration
 
 For each content in order:
   If current_position < cumulative_duration:
-    ↓ This content is ACTIVE
+     This content is ACTIVE
   cumulative_duration += content_duration
 ```
 
 ---
 
-## ⚙️ Configuration
+##  Configuration
 
 ### Allowed File Formats
 
@@ -459,18 +477,18 @@ For each content in order:
 
 ---
 
-## 🛡️ Security Features
+##  Security Features
 
-✅ **Password Hashing** - bcrypt with 10 salt rounds  
-✅ **JWT Tokens** - 7-day expiry, signed with secret key  
-✅ **SQL Injection Prevention** - Parameterized queries  
-✅ **Input Validation** - All endpoints validate input  
-✅ **Role-Based Access** - Strict permission checks  
-✅ **Error Handling** - No sensitive data exposed
+ **Password Hashing** - bcrypt with 10 salt rounds  
+ **JWT Tokens** - 7-day expiry, signed with secret key  
+ **SQL Injection Prevention** - Parameterized queries  
+ **Input Validation** - All endpoints validate input  
+ **Role-Based Access** - Strict permission checks  
+ **Error Handling** - No sensitive data exposed
 
 ---
 
-## 🧪 Testing with cURL
+##  Testing with cURL
 
 ### Sign Up
 
@@ -516,7 +534,7 @@ curl http://localhost:5000/api/broadcast/live/1
 
 ---
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### "DB Connection Failed"
 
@@ -542,50 +560,45 @@ curl http://localhost:5000/api/broadcast/live/1
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 src/
-├── config/
-│   ├── db.js              # Database connection
-│   ├── env.js             # Environment config
-│   └── schema.sql         # Database schema
-├── models/                # Database queries
-│   ├── userModel.js
-│   ├── contentModel.js
-│   ├── scheduleModel.js
-│   └── contentSlotModel.js
-├── controllers/           # Business logic
-│   ├── authController.js
-│   ├── contentController.js
-│   ├── approvalController.js
-│   └── broadcastController.js
-├── services/              # Complex logic
-│   ├── authService.js
-│   ├── schedulingService.js
-│   └── contentService.js
-├── routes/                # API routes
-│   ├── authRoutes.js
-│   ├── contentRoutes.js
-│   ├── approvalRoutes.js
-│   └── broadcastRoutes.js
-├── middlewares/           # Request interceptors
-│   ├── authMiddleware.js
-│   ├── errorMiddleware.js
-│   ├── roleMiddleware.js
-│   └── uploadMiddleware.js
-├── utils/                 # Utilities
-│   ├── constants.js
-│   ├── jwt.js
-│   └── time.js
-├── uploads/               # Uploaded files
-├── app.js                 # Express app
-└── server.js              # Entry point
+ config/
+    db.js              # Database connection
+    env.js             # Environment config
+    schema.sql         # Database schema
+ models/                # Database queries
+    userModel.js
+    contentModel.js
+    scheduleModel.js
+    contentSlotModel.js
+ controllers/           # Business logic
+    authController.js
+    contentController.js
+    approvalController.js
+    broadcastController.js
+ services/              # Complex logic
+    authService.js
+    schedulingService.js
+ routes/                # API routes
+    authRoutes.js
+    contentRoutes.js
+    approvalRoutes.js
+    broadcastRoutes.js
+ middlewares/           # Request interceptors
+    authMiddleware.js
+    errorMiddleware.js
+    roleMiddleware.js
+    uploadMiddleware.js
+ uploads/               # Uploaded files
+ app.js                 # Express app
+ server.js              # Entry point
 ```
 
 ---
 
-## 🚀 Deployment
+##  Deployment
 
 ### Prepare for Production
 
@@ -611,7 +624,7 @@ npm run build
 
 ---
 
-## 📝 API Response Format
+##  API Response Format
 
 ### Success Response
 
@@ -635,7 +648,7 @@ npm run build
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 1. Create feature branch: `git checkout -b feature/xyz`
 2. Make changes with meaningful commits
@@ -644,19 +657,19 @@ npm run build
 
 ---
 
-## 📄 License
+##  License
 
 MIT License - See LICENSE file
 
 ---
 
-## 👨‍💻 Author
+##  Author
 
 **GrubPac - Educational Content Broadcast Team**
 
 ---
 
-## ❓ FAQ
+##  FAQ
 
 **Q: Can teachers change content after uploading?**  
 A: Currently, not directly. Re-upload with different content, and reject the old one.

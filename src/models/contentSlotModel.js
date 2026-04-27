@@ -1,6 +1,6 @@
 const { pool } = require("../config/db");
 
-// ✅ REASON: Create a content slot for a subject
+// Create or get a content slot for a subject.
 const createSlot = async (subject) => {
   const res = await pool.query(
     `INSERT INTO content_slots (subject)
@@ -12,7 +12,7 @@ const createSlot = async (subject) => {
   return res.rows[0];
 };
 
-//  Find slot by subject for rotation management
+// Find slot by subject.
 const findSlotBySubject = async (subject) => {
   const res = await pool.query(`SELECT * FROM content_slots WHERE subject=$1`, [
     subject,
@@ -20,7 +20,7 @@ const findSlotBySubject = async (subject) => {
   return res.rows[0];
 };
 
-//  REASON: Get all slots for admin view
+// Get all content slots.
 const getAllSlots = async () => {
   const res = await pool.query(
     `SELECT * FROM content_slots ORDER BY subject ASC`,
@@ -28,7 +28,7 @@ const getAllSlots = async () => {
   return res.rows;
 };
 
-//  REASON: Get or create slot (ensures slot exists for subject)
+// Get slot for subject. If missing, create it.
 const getOrCreateSlot = async (subject) => {
   let slot = await findSlotBySubject(subject);
 

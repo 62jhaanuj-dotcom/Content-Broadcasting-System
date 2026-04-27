@@ -1,6 +1,6 @@
 const { pool } = require("../config/db");
 
-//  Complete content record with all fields including file metadata
+// Save uploaded content in database.
 const createContent = async ({
   title,
   subject,
@@ -34,7 +34,7 @@ const createContent = async ({
   return res.rows[0];
 };
 
-//  Get only approved content from specific teacher
+// Get approved content from one teacher.
 const getApprovedContentByTeacher = async (teacherId) => {
   const res = await pool.query(
     `SELECT * FROM content 
@@ -45,7 +45,7 @@ const getApprovedContentByTeacher = async (teacherId) => {
   return res.rows;
 };
 
-//  Get content by teacher for viewing their own uploads
+// Get all content uploaded by one teacher.
 const getContentByTeacher = async (teacherId) => {
   const res = await pool.query(
     `SELECT * FROM content 
@@ -56,7 +56,7 @@ const getContentByTeacher = async (teacherId) => {
   return res.rows;
 };
 
-//  REASON: Get all content for Principal's approval dashboard
+// Get all content for principal dashboard.
 const getAllContent = async () => {
   const res = await pool.query(
     `SELECT c.*, u.name as teacher_name FROM content c
@@ -66,7 +66,7 @@ const getAllContent = async () => {
   return res.rows;
 };
 
-//  REASON: Get pending content for approval workflow
+// Get content that is waiting for approval.
 const getPendingContent = async () => {
   const res = await pool.query(
     `SELECT c.*, u.name as teacher_name FROM content c
@@ -77,7 +77,7 @@ const getPendingContent = async () => {
   return res.rows;
 };
 
-//  REASON: Approve content and track approver and approval time
+// Mark content as approved.
 const approveContent = async (contentId, principalId) => {
   const res = await pool.query(
     `UPDATE content 
@@ -89,7 +89,7 @@ const approveContent = async (contentId, principalId) => {
   return res.rows[0];
 };
 
-//  REASON: Reject content with reason for audit trail
+// Mark content as rejected.
 const rejectContent = async (contentId, reason) => {
   const res = await pool.query(
     `UPDATE content 
@@ -101,7 +101,7 @@ const rejectContent = async (contentId, reason) => {
   return res.rows[0];
 };
 
-//  REASON: Get approved content by subject for rotation logic
+// Get approved live content by subject.
 const getApprovedContentBySubject = async (subject) => {
   const res = await pool.query(
     `SELECT c.* FROM content c
@@ -114,7 +114,7 @@ const getApprovedContentBySubject = async (subject) => {
   return res.rows;
 };
 
-//  REASON: Get approved live content for teacher + subject combination
+// Get approved live content for one teacher and one subject.
 const getApprovedLiveContentByTeacherAndSubject = async (
   teacherId,
   subject,
@@ -130,7 +130,7 @@ const getApprovedLiveContentByTeacherAndSubject = async (
   return res.rows;
 };
 
-//  REASON: Get single content by ID for detail view
+// Get one content item by id.
 const getContentById = async (contentId) => {
   const res = await pool.query(
     `SELECT c.*, u.name as teacher_name FROM content c

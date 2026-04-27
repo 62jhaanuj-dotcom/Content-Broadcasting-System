@@ -1,6 +1,6 @@
 const { pool } = require("../config/db");
 
-// ✅ REASON: Create schedule entry for content rotation tracking
+// Create one schedule row.
 const createSchedule = async ({
   contentId,
   slotId,
@@ -15,7 +15,19 @@ const createSchedule = async ({
   return res.rows[0];
 };
 
-//  Get all schedules for specific content IDs for rotation logic
+// Find next rotation order for a subject slot.
+const getNextRotationOrder = async (slotId) => {
+  const res = await pool.query(
+    `SELECT COALESCE(MAX(rotation_order), 0) + 1 AS next_order
+     FROM schedule
+     WHERE slot_id = $1`,
+    [slotId],
+  );
+
+  return res.rows[0].next_order;
+};
+
+// Get schedules for many content ids.
 const getScheduleByContentIds = async (contentIds) => {
   if (!contentIds.length) return [];
 
@@ -27,7 +39,7 @@ const getScheduleByContentIds = async (contentIds) => {
   return res.rows;
 };
 
-//  REASON: Get schedule by subject for subject-based rotation
+// Get schedule rows by slot id.
 const getScheduleBySlotId = async (slotId) => {
   const res = await pool.query(
     `SELECT s.* FROM schedule s
@@ -38,7 +50,7 @@ const getScheduleBySlotId = async (slotId) => {
   return res.rows;
 };
 
-//  REASON: Get single schedule entry for specific content
+// Get schedule for one content item.
 const getScheduleByContentId = async (contentId) => {
   const res = await pool.query(`SELECT * FROM schedule WHERE content_id = $1`, [
     contentId,
@@ -46,7 +58,7 @@ const getScheduleByContentId = async (contentId) => {
   return res.rows[0];
 };
 
-//  REASON: Delete schedule when content is rejected or removed
+// Delete schedule for one content item.
 const deleteScheduleByContentId = async (contentId) => {
   const res = await pool.query(
     `DELETE FROM schedule WHERE content_id = $1 RETURNING *`,
@@ -57,6 +69,7 @@ const deleteScheduleByContentId = async (contentId) => {
 
 module.exports = {
   createSchedule,
+  getNextRotationOrder,
   getScheduleByContentIds,
   getScheduleBySlotId,
   getScheduleByContentId,

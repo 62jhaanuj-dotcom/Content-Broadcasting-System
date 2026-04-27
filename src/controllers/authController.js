@@ -1,11 +1,10 @@
 const authService = require("../services/authService");
 
-//  Comprehensive validation for user registration
+// Register a new user.
 const signup = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
 
-    //  Strict validation of required fields
     if (!name || !name.trim()) {
       return res.status(400).json({ message: "Name is required" });
     }
@@ -14,7 +13,6 @@ const signup = async (req, res, next) => {
       return res.status(400).json({ message: "Email is required" });
     }
 
-    //  REASON: Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({ message: "Invalid email format" });
@@ -48,7 +46,7 @@ const signup = async (req, res, next) => {
   }
 };
 
-//  Complete login with token generation
+// Login user and return JWT token.
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;

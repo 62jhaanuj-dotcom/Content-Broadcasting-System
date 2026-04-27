@@ -6,7 +6,7 @@ const {
   getContentById,
 } = require("../models/contentModel");
 
-// Get all content for Principal dashboard
+// Get all content for principal dashboard.
 const getAll = async (req, res, next) => {
   try {
     const result = await getAllContent();
@@ -21,7 +21,7 @@ const getAll = async (req, res, next) => {
   }
 };
 
-//   Get only pending content for approval workflow
+// Get only content waiting for approval.
 const getPending = async (req, res, next) => {
   try {
     const result = await getPendingContent();
@@ -36,7 +36,7 @@ const getPending = async (req, res, next) => {
   }
 };
 
-//  Approve content with proper tracking of approver and timestamp
+// Approve one content item.
 const approve = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -52,7 +52,6 @@ const approve = async (req, res, next) => {
       });
     }
 
-    //  REASON: Track which principal approved and when
     const approved = await approveContent(id, req.user.id);
 
     res.json({
@@ -64,7 +63,7 @@ const approve = async (req, res, next) => {
   }
 };
 
-//  Reject content with reason for audit trail
+// Reject one content item.
 const reject = async (req, res, next) => {
   try {
     const { id } = req.params;

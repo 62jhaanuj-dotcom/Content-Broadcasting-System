@@ -6,7 +6,7 @@ const roleMiddleware = require("../middlewares/roleMiddleware");
 
 const approvalController = require("../controllers/approvalController");
 
-//  REASON: Principal can view all content
+// Principal can view all content.
 router.get(
   "/all",
   authMiddleware,
@@ -14,7 +14,7 @@ router.get(
   approvalController.getAll,
 );
 
-//  REASON: Principal can view pending content for approval
+// Principal can view pending content.
 router.get(
   "/pending",
   authMiddleware,
@@ -22,7 +22,7 @@ router.get(
   approvalController.getPending,
 );
 
-//  REASON: Principal can approve content (tracks approver + timestamp)
+// Principal can approve content.
 router.put(
   "/:id/approve",
   authMiddleware,
@@ -30,7 +30,7 @@ router.put(
   approvalController.approve,
 );
 
-//  REASON: Principal can reject content with reason
+// Principal can reject content with reason.
 router.put(
   "/:id/reject",
   authMiddleware,

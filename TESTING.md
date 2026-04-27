@@ -1,4 +1,4 @@
-# 🧪 API Testing Guide
+#  API Testing Guide
 
 ## Setup Before Testing
 
@@ -11,9 +11,9 @@ Server will run on http://localhost:5000
 
 ---
 
-## ✅ TEST SEQUENCE
+##  TEST SEQUENCE
 
-### 1️⃣ AUTHENTICATION TESTS
+### 1 AUTHENTICATION TESTS
 
 #### Create Teacher Account
 
@@ -94,7 +94,7 @@ curl -X POST http://localhost:5000/api/auth/login \
 
 ---
 
-### 2️⃣ CONTENT UPLOAD TESTS
+### 2 CONTENT UPLOAD TESTS
 
 #### Upload Content (Without Time Window)
 
@@ -104,10 +104,11 @@ curl -X POST http://localhost:5000/api/content/upload \
   -F "file=@test-image.jpg" \
   -F "title=Math Question Paper" \
   -F "subject=maths" \
-  -F "description=Chapter 1 Questions"
+  -F "description=Chapter 1 Questions" \
+  -F "rotationDuration=5"
 ```
 
-**Expected Response:** 201, content details with status: "pending"
+**Expected Response:** 201, content details with status: "pending" and schedule details.
 
 ---
 
@@ -150,7 +151,7 @@ curl -X GET http://localhost:5000/api/content/my \
 
 ---
 
-### 3️⃣ APPROVAL WORKFLOW TESTS
+### 3 APPROVAL WORKFLOW TESTS
 
 #### Principal Views Pending Content
 
@@ -199,7 +200,7 @@ curl -X PUT http://localhost:5000/api/approval/2/reject \
 
 ---
 
-### 4️⃣ PUBLIC BROADCASTING API TESTS (NO AUTH REQUIRED)
+### 4 PUBLIC BROADCASTING API TESTS (NO AUTH REQUIRED)
 
 #### Get Live Content for Teacher
 
@@ -237,7 +238,7 @@ curl http://localhost:5000/api/broadcast/teacher/1
 
 ---
 
-### 5️⃣ EDGE CASE TESTS
+### 5 EDGE CASE TESTS
 
 #### Invalid Teacher ID
 
@@ -271,7 +272,7 @@ curl http://localhost:5000/api/broadcast/live/1/nonexistent
 
 ---
 
-## 🐛 ERROR SCENARIOS
+##  ERROR SCENARIOS
 
 #### Missing Token
 
@@ -301,24 +302,25 @@ curl -X POST http://localhost:5000/api/auth/login \
 
 ---
 
-## 📊 Rotation Logic Test
+##  Rotation Logic Test
 
 1. Upload 3 pieces of content for "maths"
 2. Approve all 3
-3. Set durations via database (add schedule records):
-   - Content 1: 5 minutes
-   - Content 2: 3 minutes
-   - Content 3: 5 minutes
-4. Call `/api/broadcast/live/1/maths` multiple times
-5. Should rotate between content based on current time
+3. Pass `rotationDuration` during upload:
+   - Content 1: `rotationDuration=5`
+   - Content 2: `rotationDuration=3`
+   - Content 3: `rotationDuration=5`
+4. The upload API automatically creates rows in `content_slots` and `schedule`
+5. Call `/api/broadcast/live/1/maths` or `/content/live/teacher-1/maths`
+6. Should rotate between content based on current time
 
 ---
 
-## ✨ All Tests Completed Successfully When:
+##  All Tests Completed Successfully When:
 
-- ✅ All auth endpoints return 200/201
-- ✅ Content upload returns 201
-- ✅ Approval endpoints work correctly
-- ✅ Broadcasting API returns correct content
-- ✅ Edge cases handled gracefully (no errors, proper responses)
-- ✅ Role-based access control enforced
+-  All auth endpoints return 200/201
+-  Content upload returns 201
+-  Approval endpoints work correctly
+-  Broadcasting API returns correct content
+-  Edge cases handled gracefully (no errors, proper responses)
+-  Role-based access control enforced

@@ -1,11 +1,17 @@
 # dependencies
 node_modules/
 
-# env files
 .env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+*.pem
+*.key
 
 # uploads (local files)
-src/uploads/
+src/uploads/*
+!src/uploads/.gitkeep
 
 # logs
 logs/
@@ -28,6 +34,12 @@ build/
 
 # coverage
 coverage/
+
+# temporary
+tmp/
+temp/
+.cache/
+
 
 # temp
 tmp/

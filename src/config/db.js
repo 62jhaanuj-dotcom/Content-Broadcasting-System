@@ -1,6 +1,7 @@
 const { Pool } = require("pg");
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 
+// This creates a PostgreSQL connection pool.
 const pool = new Pool({
   connectionString: process.env.SUPABASE_DB_URL,
   ssl: { rejectUnauthorized: false },

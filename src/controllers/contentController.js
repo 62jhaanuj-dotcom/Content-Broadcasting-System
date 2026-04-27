@@ -3,13 +3,24 @@ const {
   getContentByTeacher,
   getContentById,
 } = require("../models/contentModel");
+const { getOrCreateSlot } = require("../models/contentSlotModel");
+const {
+  createSchedule,
+  getNextRotationOrder,
+} = require("../models/scheduleModel");
 
-//  Comprehensive validation for content upload
+// Upload new content.
 const uploadContent = async (req, res, next) => {
   try {
-    const { title, subject, startTime, endTime, description } = req.body;
+    const {
+      title,
+      subject,
+      startTime,
+      endTime,
+      description,
+      rotationDuration,
+    } = req.body;
 
-    //  REASON: Validate all required fields before processing
     if (!title || !title.trim()) {
       return res.status(400).json({ message: "Title is required" });
     }
@@ -22,7 +33,7 @@ const uploadContent = async (req, res, next) => {
       return res.status(400).json({ message: "File is required" });
     }
 
-    //  REASON: Validate time range if provided
+    // If dates are provided, end time should be after start time.
     if (startTime && endTime) {
       const start = new Date(startTime);
       const end = new Date(endTime);
@@ -38,10 +49,19 @@ const uploadContent = async (req, res, next) => {
       }
     }
 
-    //  REASON: Extract file metadata for storage
+    const duration = parseInt(rotationDuration || "5");
+
+    if (isNaN(duration) || duration <= 0) {
+      return res.status(400).json({
+        message: "Rotation duration must be a positive number",
+      });
+    }
+
+    const cleanSubject = subject.trim().toLowerCase();
+
     const content = await createContent({
       title: title.trim(),
-      subject: subject.trim().toLowerCase(),
+      subject: cleanSubject,
       filePath: req.file.path,
       fileName: req.file.filename,
       fileSize: req.file.size,
@@ -52,16 +72,29 @@ const uploadContent = async (req, res, next) => {
       description: description || null,
     });
 
+    const slot = await getOrCreateSlot(cleanSubject);
+    const rotationOrder = await getNextRotationOrder(slot.id);
+
+    const schedule = await createSchedule({
+      contentId: content.id,
+      slotId: slot.id,
+      rotationOrder,
+      duration,
+    });
+
     res.status(201).json({
       message: "Content uploaded successfully",
-      data: content,
+      data: {
+        ...content,
+        schedule,
+      },
     });
   } catch (err) {
     next(err);
   }
 };
 
-//  REASON: Get all content uploaded by teacher with status
+// Get content uploaded by the logged-in teacher.
 const getMyContent = async (req, res, next) => {
   try {
     const data = await getContentByTeacher(req.user.id);
@@ -76,7 +109,7 @@ const getMyContent = async (req, res, next) => {
   }
 };
 
-//  REASON: Get specific content details
+// Get one content item by id.
 const getContentDetails = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -87,7 +120,7 @@ const getContentDetails = async (req, res, next) => {
       return res.status(404).json({ message: "Content not found" });
     }
 
-    //  REASON: Authorization check - teachers can only view their own content or approved content
+    // Teachers can view their own content. They can also view approved content.
     if (req.user.role === "teacher" && content.uploaded_by !== req.user.id) {
       if (content.status !== "approved") {
         return res.status(403).json({ message: "Access denied" });
