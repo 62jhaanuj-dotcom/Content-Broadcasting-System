@@ -609,20 +609,8 @@ src/
 5. Enable HTTPS
 6. Add rate limiting (future)
 
-### Deploy to Heroku
+### Deploy to Render
 
-```bash
-git push heroku main
-```
-
-### Deploy to AWS
-
-```bash
-# Package and deploy to EC2/Lambda
-npm run build
-```
-
----
 
 ##  API Response Format
 
