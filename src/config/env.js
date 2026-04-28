@@ -1,16 +1,25 @@
 require("dotenv").config({ quiet: true });
 
 const defaultOrigins = ["http://localhost:3000", "http://localhost:5000"];
+const databaseUrl = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
 const env = {
   PORT: process.env.PORT || 5000,
+
   NODE_ENV: process.env.NODE_ENV || "development",
-  SUPABASE_DB_URL: process.env.SUPABASE_DB_URL,
+
+  DATABASE_URL: databaseUrl,
+  SUPABASE_DB_URL: databaseUrl,
+  DB_SSL:
+    process.env.DB_SSL === "true" || process.env.NODE_ENV === "production",
+
   JWT_SECRET: process.env.JWT_SECRET,
+
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
     : defaultOrigins,
   MAX_FILE_SIZE: parseInt(process.env.MAX_FILE_SIZE || "10485760"),
+  
   RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "900000"),
   RATE_LIMIT_MAX_REQUESTS: parseInt(
     process.env.RATE_LIMIT_MAX_REQUESTS || "100",
@@ -19,7 +28,7 @@ const env = {
 
 // These values are required when app is running in production.
 if (env.NODE_ENV === "production") {
-  const required = ["SUPABASE_DB_URL", "JWT_SECRET"];
+  const required = ["DATABASE_URL", "JWT_SECRET"];
   const missing = required.filter((key) => !env[key]);
 
   if (missing.length > 0) {

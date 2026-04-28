@@ -19,7 +19,11 @@ const errorMiddleware = (err, req, res, next) => {
   }
 
   // Return clear status codes for common errors.
-  if (err.message && err.message.includes("already exists")) {
+  if (
+    err.message &&
+    (err.message.includes("already exists") ||
+      err.message.includes("already registered"))
+  ) {
     return res.status(409).json({
       message: err.message,
       status: "error",
@@ -64,6 +68,14 @@ const errorMiddleware = (err, req, res, next) => {
       message: "Only jpg, png, gif files allowed",
       status: "error",
       code: "INVALID_FILE_TYPE",
+    });
+  }
+
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({
+      message: "File size exceeds the allowed limit",
+      status: "error",
+      code: "FILE_TOO_LARGE",
     });
   }
 

@@ -126,22 +126,21 @@ Example Rotation:
 Algorithm Implementation (src/services/schedulingService.js):
 
 ```javascript
-1. Get approved content for teacher
-2. Filter by subject (if provided)
-3. Filter by time window (start_time <= now <= end_time)
-4. Get schedule records for these content items
-5. Calculate total = sum(all durations)
-6. current_position = floor(now_millis / 60000) % total
-7. For each schedule (ordered by rotation_order):
+1. Group teacher content by subject
+2. Filter out anything outside its active time window
+3. For each subject, load only that subject's schedule rows
+4. Calculate total = sum(all durations for that subject)
+5. current_position = floor(now_millis / 60000) % total
+6. For each schedule (ordered by rotation_order):
    - If current_position < cumulative_duration:
-     - Return this content (IT'S ACTIVE NOW)
+     - Return this content as the active item for that subject
    - Else cumulative_duration += schedule.duration
 ```
 
 Edge Cases Handled:
  No content available  returns "No content available"
  Content outside time window  filtered out
- No schedule defined  returns first content
+ No schedule defined  returns "No content available"
  Invalid subject  returns empty (not error)
 
 ================================================================================
@@ -199,7 +198,7 @@ If startTime/endTime provided:
 5 CONTENT APPROVAL WORKFLOW
 ================================================================================
 
-Content Lifecycle: UPLOADED  PENDING  APPROVED/REJECTED
+Content Lifecycle: PENDING  APPROVED/REJECTED
 
 State Diagram:
 
@@ -251,19 +250,23 @@ Audit Trail Maintained:
 Public Endpoints (NO AUTHENTICATION REQUIRED):
 
 1. GET /api/broadcast/live/:teacherId
-    Returns currently active content for teacher
-    Respects subject-based rotation
+    Returns one currently active content item for the teacher
+    Respects independent rotation per subject
+    If multiple subjects are active, one active subject is selected at a time
     Only shows approved + within time window
-    Query param: ?subject=maths (optional, for specific subject)
+    Query param: ?subject=maths returns a single subject item
 
 2. GET /api/broadcast/teacher/:teacherId
-    Returns all active content grouped by subject
-    Shows rotation info per subject
-    Useful for listing all live content
+    Returns the grouped live view by subject
+    Shows one active content item plus rotation info per subject
 
 3. GET /api/broadcast/live/:teacherId/:subject
     Subject-specific rotation
     Only shows content for specified subject
+
+Assignment-style aliases:
+1. GET /content/live/teacher-1
+2. GET /content/live/teacher-1/maths
 
 Response Format:
 
@@ -286,7 +289,10 @@ Response Format:
   "rotationInfo": {
     "totalDuration": 15,
     "currentSlot": 7,
-    "contentDuration": 5
+    "contentDuration": 5,
+    "rotationOrder": 1,
+    "subject": "maths",
+    "activeSubjectCount": 2
   }
 }
 ```
@@ -294,16 +300,19 @@ Response Format:
 Edge Case Handling:
 
 ```javascript
-// Case 1: No content available
+// Case 1: No content available on teacher-wide single-content endpoint
 Response: { message: "No content available", data: null }
 
 // Case 2: Invalid teacher ID
-Response: Status 400 { message: "No content available" }
+Response: { message: "No content available", data: null }
 
 // Case 3: Valid teacher, but no approved content
 Response: { message: "No content available", data: null }
 
 // Case 4: Approved but outside time window
+Response: { message: "No content available", data: null }
+
+// Case 5: Approved but no schedule row on subject-specific endpoint
 Response: { message: "No content available", data: null }
 ```
 
@@ -320,7 +329,6 @@ src/
  config/
     db.js           - PostgreSQL connection pool
     env.js          - Environment variables
-    schema.sql      - Database initialization
 
  models/             - Data access layer (queries)
     userModel.js

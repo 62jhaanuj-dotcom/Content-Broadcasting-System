@@ -1,6 +1,7 @@
 const {
   getLiveContentService,
   getTeacherLiveContentBySubject,
+  getTeacherLiveContent,
 } = require("../services/schedulingService");
 
 const getTeacherIdFromParam = (value) => {
@@ -32,10 +33,24 @@ const getLiveContent = async (req, res, next) => {
       });
     }
 
-    const result = await getLiveContentService(
-      teacherId,
-      subject || null,
-    );
+    if (!subject) {
+      const result = await getTeacherLiveContent(teacherId);
+
+      if (result.status === "no_content") {
+        return res.json({
+          message: "No content available",
+          data: null,
+        });
+      }
+
+      return res.json({
+        message: "Content retrieved successfully",
+        data: result.data,
+        rotationInfo: result.rotationInfo || null,
+      });
+    }
+
+    const result = await getLiveContentService(teacherId, subject);
 
     if (result.status === "no_content") {
       return res.json({

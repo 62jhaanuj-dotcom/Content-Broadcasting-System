@@ -1,679 +1,573 @@
-#  Content Broadcast System - Backend API
+# Content Broadcasting System Backend
 
-> A modern backend system for distributing educational content to students with teacher-controlled scheduling and principal-managed approvals.
+Backend API for a school content broadcasting workflow where:
 
-##  Quick Overview
+- teachers upload subject-based content
+- principals approve or reject it
+- students consume approved live content from public endpoints
 
-Teachers upload subject-based educational content  Principals approve it  System broadcasts via public API with rotation scheduling  Students access content within defined time windows.
+This project is built with Node.js, Express, PostgreSQL, JWT authentication, local file uploads, and subject-based rotation logic.
 
----
+## Overview
 
-##  Features
+The system is designed for educational content distribution without printed copies.
 
- **JWT Authentication** - Secure token-based auth with role-based access  
- **Role-Based Access Control** - Teacher & Principal roles with strict permissions  
- **Content Upload** - JPG/PNG/GIF images with metadata tracking  
- **Approval Workflow** - Content goes through pending  approved/rejected states  
- **Subject-Based Rotation** - Independent rotation schedule per subject  
- **Time-Window Scheduling** - Content visible only within teacher-defined periods  
- **Public Broadcasting API** - Students access approved content via stateless endpoints  
- **Error Handling** - Centralized error middleware with structured responses  
- **Input Validation** - Comprehensive validation at all endpoints
+Typical flow:
 
----
+1. A teacher signs up and logs in.
+2. The teacher uploads content with subject, file, and schedule window.
+3. The content is stored as `pending`.
+4. A principal reviews it.
+5. The principal approves or rejects it.
+6. Approved content becomes available through public live APIs only when it is inside its active time window.
 
-##  Tech Stack
+## Implemented Features
 
-| Component      | Technology                |
-| -------------- | ------------------------- |
-| Runtime        | Node.js (v16+)            |
-| Framework      | Express.js 5.x            |
-| Database       | PostgreSQL (via Supabase) |
-| Authentication | JWT + bcrypt              |
-| File Upload    | Multer (local storage)    |
-| Environment    | Dotenv                    |
+- JWT authentication
+- Role-based access control for `teacher` and `principal`
+- Password hashing with `bcrypt`
+- Image upload with `multer`
+- Local file storage
+- Approval and rejection workflow
+- Subject-based rotation scheduling
+- Public live broadcasting API
+- Edge-case handling for empty live states
+- Centralized error handling
+- Rate limiting on `/api/*`
 
----
+## Tech Stack
 
-##  Installation & Setup
+| Layer | Technology |
+| --- | --- |
+| Runtime | Node.js |
+| Framework | Express |
+| Database | PostgreSQL / Supabase Postgres |
+| Auth | JWT |
+| Password Hashing | bcrypt |
+| Uploads | multer |
+| Security | helmet, CORS, rate limiting |
 
-### 1. Prerequisites
+## Roles
 
-- Node.js v16+ installed
-- PostgreSQL database (local or Supabase)
-- npm or yarn
+### Teacher
 
-### 2. Clone & Install
+- sign up and log in
+- upload content
+- view own uploaded content
 
-```bash
-git clone <repo-url>
-cd content-broadcast-backend
-npm install
+### Principal
+
+- sign up and log in
+- view all uploaded content
+- view pending content
+- approve content
+- reject content with reason
+
+## Content Lifecycle
+
+```text
+upload -> pending -> approved / rejected
 ```
 
-### 3. Database Setup
+Rules:
 
-#### Option A: PostgreSQL (Local)
+- newly uploaded content is stored as `pending`
+- only approved content is eligible for public broadcast
+- rejected content stores a `rejection_reason`
+- approved content still requires a valid schedule window to appear live
 
-```bash
-psql -U postgres -h localhost
-CREATE DATABASE content_broadcast;
+## Scheduling Rules
+
+Scheduling is the most important business rule in this project.
+
+- each content item belongs to one subject
+- each subject has its own independent rotation
+- `rotationDuration` controls how many minutes that content stays active in its subject cycle
+- content is considered live only if:
+  - status is `approved`
+  - `startTime` and `endTime` are both set
+  - current time falls between `startTime` and `endTime`
+
+### Important behavior
+
+- if `startTime` and `endTime` are omitted, upload still succeeds
+- but that content will never appear in live broadcast until a valid window exists
+
+### Live endpoint behavior
+
+`GET /api/broadcast/live/:teacherId`
+
+- returns one currently active content item for the teacher
+- if multiple subjects are active for the same teacher, one active subject is selected at a time
+- response includes `rotationInfo`
+
+`GET /api/broadcast/teacher/:teacherId`
+
+- returns grouped live content by subject
+- useful when you want the full per-subject live view
+
+## Database Schema Overview
+
+users
+
+Stores all system users (teachers & principals).
+
+id (PK)
+name
+email (unique)
+password_hash
+role (teacher, principal)
+created_at
+updated_at
+
+2. content
+
+Stores uploaded content along with approval and scheduling metadata.
+
+id (PK)
+title
+description
+subject
+file_path
+file_type
+file_size
+uploaded_by (FK → users.id)
+status (pending, approved, rejected)
+start_time
+end_time
+approved_by (FK → users.id)
+approved_at
+rejection_reason
+created_at
+updated_at
+
+3. content_slots
+
+Represents subject-wise slots for rotation.
+
+id (PK)
+subject
+created_at
+updated_at
+
+4. schedule
+
+Handles rotation logic for content inside each subject slot.
+
+id (PK)
+content_id (FK → content.id)
+slot_id (FK → content_slots.id)
+rotation_order
+duration (in minutes)
+created_at
+updated_at
+### Relationships
+
+- one teacher can upload many content items
+- one principal can approve many content items
+- one subject slot can contain many scheduled items
+- one content item maps to one schedule row
+
+## Project Structure
+
+```text
+src/
+  config/
+    db.js
+    env.js
+  controllers/
+    approvalController.js
+    authController.js
+    broadcastController.js
+    contentController.js
+  middlewares/
+    authMiddleware.js
+    errorMiddleware.js
+    roleMiddleware.js
+    uploadMiddleware.js
+  models/
+    contentModel.js
+    contentSlotModel.js
+    scheduleModel.js
+    userModel.js
+  routes/
+    approvalRoutes.js
+    authRoutes.js
+    broadcastRoutes.js
+    contentRoutes.js
+  services/
+    authService.js
+    schedulingService.js
+server.js
 ```
 
-#### Option B: Supabase (Cloud)
+## Environment Variables
 
-Create project at https://supabase.com and get connection string
-
-### 4. Initialize Schema
-
-```bash
-# Connect to your database
-psql -U postgres -d content_broadcast < src/config/schema.sql
-
-# Or use SQL client to run: src/config/schema.sql
-```
-
-### 5. Environment Variables
-
-Create `.env` file in root:
+Create a `.env` file in the project root.
 
 ```env
 PORT=5000
 NODE_ENV=development
 
-# Database (Supabase format)
+DATABASE_URL=postgresql://user:password@host:port/database
 SUPABASE_DB_URL=postgresql://user:password@host:port/database
+DB_SSL=false
 
-# JWT Secret (use strong random string)
 JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
+
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5000
+MAX_FILE_SIZE=10485760
+
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
 ```
 
-### 6. Start Server
+Notes:
+
+- `DATABASE_URL` is the preferred key
+- `SUPABASE_DB_URL` is still supported for backward compatibility
+- in production, SSL is enabled by default unless configured otherwise
+
+## Local Setup
+
+1. Install dependencies
 
 ```bash
-# Development (with auto-reload)
-npm run dev
+npm install
+```
 
-# Production
+2. Configure `.env`
+
+3. Make sure your PostgreSQL / Supabase database already contains the required tables
+
+4. Start the server
+
+```bash
+npm run dev
+```
+
+or
+
+```bash
 npm start
 ```
 
-Expected output:
+## Authentication Rules
 
-```
- DB Connected
- Server running on port 5000
-```
+### Sign Up
 
----
+`POST /api/auth/signup`
 
-##  API Documentation
+Required fields:
 
-### Authentication Endpoints
+- `name`
+- `email`
+- `password`
+- `role`
 
-#### Sign Up
+Validation rules:
 
-```http
-POST /api/auth/signup
-Content-Type: application/json
+- `name` cannot be blank
+- `email` must be valid
+- `password` must be at least 6 characters after trimming
+- spaces-only passwords are rejected
+- `role` must be exactly `teacher` or `principal`
 
+Example:
+
+```json
 {
-  "name": "John Teacher",
-  "email": "john@school.com",
+  "name": "Teacher One",
+  "email": "teacher1@mail.com",
   "password": "Password123",
   "role": "teacher"
 }
 ```
 
-**Response (201):**
+### Login
 
-```json
-{
-  "message": "User registered successfully",
-  "user": {
-    "id": 1,
-    "name": "John Teacher",
-    "email": "john@school.com",
-    "role": "teacher"
-  }
-}
-```
+`POST /api/auth/login`
 
-#### Login
+Required fields:
 
-```http
-POST /api/auth/login
-Content-Type: application/json
+- `email`
+- `password`
 
-{
-  "email": "john@school.com",
-  "password": "Password123"
-}
-```
-
-**Response (200):**
+Example response:
 
 ```json
 {
   "message": "Login successful",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token": "JWT_TOKEN",
   "user": {
     "id": 1,
-    "name": "John Teacher",
-    "email": "john@school.com",
+    "name": "Teacher One",
+    "email": "teacher1@mail.com",
     "role": "teacher"
   }
 }
 ```
 
----
+## Upload Rules
 
-### Content Management (Teacher)
+`POST /api/content/upload`
 
-#### Upload Content
+Required:
+
+- `title`
+- `subject`
+- `file`
+
+Optional:
+
+- `description`
+- `startTime`
+- `endTime`
+- `rotationDuration`
+
+Validation rules:
+
+- file must be `jpg`, `png`, or `gif`
+- max file size is `10MB`
+- `startTime` and `endTime` must be provided together
+- `endTime` must be later than `startTime`
+- `rotationDuration` must be a positive number
+
+## Rate Limiting
+
+Rate limiting is implemented on all `/api/*` routes.
+
+Current behavior:
+
+- controlled by `RATE_LIMIT_WINDOW_MS`
+- controlled by `RATE_LIMIT_MAX_REQUESTS`
+- returns a friendly error message when the limit is exceeded
+
+Implementation reference:
+
+- `express-rate-limit` middleware is mounted in `src/app.js`
+
+## API Summary
+
+### Auth
+
+- `POST /api/auth/signup`
+- `POST /api/auth/login`
+
+### Teacher Content
+
+- `POST /api/content/upload`
+- `GET /api/content/my`
+- `GET /api/content/:id`
+
+### Principal Approval
+
+- `GET /api/approval/all`
+- `GET /api/approval/pending`
+- `PUT /api/approval/:id/approve`
+- `PUT /api/approval/:id/reject`
+
+### Public Broadcast
+
+- `GET /api/broadcast/live/:teacherId`
+- `GET /api/broadcast/live/:teacherId/:subject`
+- `GET /api/broadcast/live/:teacherId?subject=maths`
+- `GET /api/broadcast/teacher/:teacherId`
+
+Assignment-style alias:
+
+- `GET /content/live/teacher-1`
+- `GET /content/live/teacher-1/maths`
+
+Broadcast endpoints accept either:
+
+- numeric teacher ID like `1`
+- alias format like `teacher-1`
+
+## Public API Examples
+
+### Health Check
 
 ```http
-POST /api/content/upload
-Authorization: Bearer <JWT_TOKEN>
-Content-Type: multipart/form-data
-
-Fields:
-  - title: "Question Paper Chapter 5" (required)
-  - subject: "maths" (required)
-  - file: <image.jpg> (required, max 10MB)
-  - description: "Important questions" (optional)
-  - startTime: "2026-04-27T10:00:00Z" (optional)
-  - endTime: "2026-04-27T12:00:00Z" (optional)
-  - rotationDuration: 5 (optional, minutes, default 5)
+GET /
 ```
 
-**Response (201):**
+Response:
 
 ```json
 {
-  "message": "Content uploaded successfully",
-  "data": {
-    "id": 5,
-    "title": "Question Paper Chapter 5",
-    "subject": "maths",
-    "file_path": "src/uploads/1698765432123.jpg",
-    "file_type": "image/jpeg",
-    "file_size": 2048576,
-    "uploaded_by": 1,
-    "status": "pending",
-    "start_time": "2026-04-27T10:00:00Z",
-    "end_time": "2026-04-27T12:00:00Z",
-    "created_at": "2026-04-26T14:30:00Z",
-    "schedule": {
-      "slot_id": 1,
-      "rotation_order": 1,
-      "duration": 5
-    }
-  }
+  "message": "Content Broadcast API is running",
+  "version": "1.0.0",
+  "status": "healthy"
 }
 ```
 
-#### Get My Content
+### Teacher Live Content
 
 ```http
-GET /api/content/my
-Authorization: Bearer <JWT_TOKEN>
+GET /api/broadcast/live/teacher-1
 ```
 
-**Response (200):**
-
-```json
-{
-  "message": "Content retrieved successfully",
-  "data": [
-    {
-      "id": 5,
-      "title": "Question Paper Chapter 5",
-      "subject": "maths",
-      "status": "pending",
-      "created_at": "2026-04-26T14:30:00Z"
-    }
-  ],
-  "count": 1
-}
-```
-
----
-
-### Approval Workflow (Principal)
-
-#### View Pending Content
-
-```http
-GET /api/approval/pending
-Authorization: Bearer <JWT_TOKEN>
-```
-
-**Response (200):**
-
-```json
-{
-  "message": "Pending content retrieved",
-  "data": [
-    {
-      "id": 5,
-      "title": "Question Paper Chapter 5",
-      "subject": "maths",
-      "status": "pending",
-      "teacher_name": "John Teacher",
-      "created_at": "2026-04-26T14:30:00Z"
-    }
-  ],
-  "count": 1
-}
-```
-
-#### Approve Content
-
-```http
-PUT /api/approval/{id}/approve
-Authorization: Bearer <JWT_TOKEN>
-```
-
-**Response (200):**
-
-```json
-{
-  "message": "Content approved successfully",
-  "data": {
-    "id": 5,
-    "status": "approved",
-    "approved_by": 2,
-    "approved_at": "2026-04-26T15:45:00Z"
-  }
-}
-```
-
-#### Reject Content
-
-```http
-PUT /api/approval/{id}/reject
-Authorization: Bearer <JWT_TOKEN>
-Content-Type: application/json
-
-{
-  "reason": "Image quality is poor. Please resubmit with high-resolution image."
-}
-```
-
-**Response (200):**
-
-```json
-{
-  "message": "Content rejected successfully",
-  "data": {
-    "id": 5,
-    "status": "rejected",
-    "rejection_reason": "Image quality is poor..."
-  }
-}
-```
-
----
-
-### Broadcasting (Public API - No Auth)
-
-#### Get Live Content for Teacher
-
-```http
-GET /api/broadcast/live/1
-```
-
-Assignment-style alias also works:
-
-```http
-GET /content/live/teacher-1
-```
-
-**Response (200):**
+Example response:
 
 ```json
 {
   "message": "Content retrieved successfully",
   "data": {
-    "id": 5,
-    "title": "Question Paper Chapter 5",
+    "id": 10,
+    "title": "Maths Test 1",
     "subject": "maths",
-    "file_path": "src/uploads/1698765432123.jpg",
     "status": "approved"
   },
   "rotationInfo": {
-    "totalDuration": 15,
-    "currentSlot": 7,
-    "contentDuration": 5
+    "totalDuration": 8,
+    "currentSlot": 2,
+    "contentDuration": 5,
+    "rotationOrder": 1,
+    "subject": "maths",
+    "activeSubjectCount": 2
   }
 }
 ```
 
-#### Get Live Content by Subject
+If nothing is live:
 
-```http
-GET /api/broadcast/live/1/maths
+```json
+{
+  "message": "No content available",
+  "data": null
+}
 ```
 
-Assignment-style alias also works:
+### Teacher Live Content By Subject
 
 ```http
-GET /content/live/teacher-1/maths
+GET /api/broadcast/live/teacher-1/maths
 ```
 
-#### Get All Live Content by Teacher
+If nothing is live for that subject:
+
+```json
+{
+  "message": "No content available",
+  "data": null
+}
+```
+
+### Teacher Grouped Live View
 
 ```http
 GET /api/broadcast/teacher/1
 ```
 
-**Response (200):**
+Example response:
 
 ```json
 {
   "message": "Content retrieved successfully",
   "data": {
-    "maths": [
-      {
-        "id": 5,
-        "title": "Question Paper Chapter 5",
+    "maths": {
+      "content": {
+        "id": 10,
+        "title": "Maths Test 1",
+        "subject": "maths",
         "status": "approved"
       },
-      {
-        "id": 6,
-        "title": "Formula Sheet",
-        "status": "approved"
+      "rotationInfo": {
+        "totalDuration": 8,
+        "currentSlot": 2,
+        "contentDuration": 5,
+        "rotationOrder": 1
       }
-    ],
-    "science": [
-      {
-        "id": 7,
-        "title": "Periodic Table",
+    },
+    "science": {
+      "content": {
+        "id": 12,
+        "title": "Science Poster",
+        "subject": "science",
         "status": "approved"
+      },
+      "rotationInfo": {
+        "totalDuration": 5,
+        "currentSlot": 2,
+        "contentDuration": 5,
+        "rotationOrder": 1
       }
-    ]
+    }
   }
 }
 ```
 
----
+## Error Handling
 
-##  Content Lifecycle
+The API returns structured errors for common failures:
 
-```
-1. UPLOAD
-   Teacher uploads content  status = "pending"
-   Content visible only to teacher & principal
+- `400` bad input
+- `401` invalid or missing auth
+- `403` forbidden access
+- `404` missing resource
+- `409` duplicate email
+- `500` internal server error
 
-2. PENDING
-   Principal reviews in /api/approval/pending
-
-3a. APPROVED (Content goes live)
-    - Status: "approved"
-    - Approver tracked: approved_by
-    - Timestamp tracked: approved_at
-    - Becomes eligible for broadcasting
-    - Respects start_time  end_time window
-
-3b. REJECTED (Content archived)
-    - Status: "rejected"
-    - Reason stored: rejection_reason
-    - NOT shown in broadcast API
-    - Reason visible to teacher
-```
-
----
-
-##  Rotation Logic
-
-### How Subject-Based Rotation Works
-
-Each subject has its own independent rotation cycle:
-
-```
-Maths Rotation (Total: 13 minutes):
- Content A: 0-5 min (5 min duration)
- Content B: 5-10 min (5 min duration)
- Content C: 10-13 min (3 min duration)
-    cycles back to Content A
-
-Science Rotation (Independent):
- Content X: 0-7 min (7 min duration)
- Content Y: 7-12 min (5 min duration)
-    cycles back to Content X
-```
-
-**Algorithm:**
-
-```
-current_time_minutes = floor(Date.now() / 60000)
-current_position = current_time_minutes % total_cycle_duration
-
-For each content in order:
-  If current_position < cumulative_duration:
-     This content is ACTIVE
-  cumulative_duration += content_duration
-```
-
----
-
-##  Configuration
-
-### Allowed File Formats
-
-- JPG (image/jpeg)
-- PNG (image/png)
-- GIF (image/gif)
-
-### File Size Limit
-
-- Maximum: **10MB**
-
-### Time Format
-
-- ISO 8601: `2026-04-27T10:00:00Z`
-- Always in UTC
-
----
-
-##  Security Features
-
- **Password Hashing** - bcrypt with 10 salt rounds  
- **JWT Tokens** - 7-day expiry, signed with secret key  
- **SQL Injection Prevention** - Parameterized queries  
- **Input Validation** - All endpoints validate input  
- **Role-Based Access** - Strict permission checks  
- **Error Handling** - No sensitive data exposed
-
----
-
-##  Testing with cURL
-
-### Sign Up
-
-```bash
-curl -X POST http://localhost:5000/api/auth/signup \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "John Teacher",
-    "email": "john@school.com",
-    "password": "Password123",
-    "role": "teacher"
-  }'
-```
-
-### Login
-
-```bash
-curl -X POST http://localhost:5000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "john@school.com",
-    "password": "Password123"
-  }'
-```
-
-### Upload Content
-
-```bash
-curl -X POST http://localhost:5000/api/content/upload \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -F "title=Question Paper" \
-  -F "subject=maths" \
-  -F "startTime=2026-04-27T10:00:00Z" \
-  -F "endTime=2026-04-27T12:00:00Z" \
-  -F "file=@/path/to/image.jpg"
-```
-
-### Get Live Content (Public)
-
-```bash
-curl http://localhost:5000/api/broadcast/live/1
-```
-
----
-
-##  Troubleshooting
-
-### "DB Connection Failed"
-
-- Check database URL in `.env`
-- Ensure PostgreSQL is running
-- Verify network connection to Supabase
-
-### "Invalid token"
-
-- Ensure token is in Authorization header
-- Token format: `Bearer <token>`
-- Check token expiry (7 days)
-
-### "File too large"
-
-- Max file size is 10MB
-- Compress image if needed
-
-### "Only jpg/png/gif allowed"
-
-- Check file format
-- Use .jpg, .png, or .gif extensions
-
----
-
-##  Project Structure
-
-```
-src/
- config/
-    db.js              # Database connection
-    env.js             # Environment config
-    schema.sql         # Database schema
- models/                # Database queries
-    userModel.js
-    contentModel.js
-    scheduleModel.js
-    contentSlotModel.js
- controllers/           # Business logic
-    authController.js
-    contentController.js
-    approvalController.js
-    broadcastController.js
- services/              # Complex logic
-    authService.js
-    schedulingService.js
- routes/                # API routes
-    authRoutes.js
-    contentRoutes.js
-    approvalRoutes.js
-    broadcastRoutes.js
- middlewares/           # Request interceptors
-    authMiddleware.js
-    errorMiddleware.js
-    roleMiddleware.js
-    uploadMiddleware.js
- uploads/               # Uploaded files
- app.js                 # Express app
- server.js              # Entry point
-```
-
----
-
-##  Deployment
-
-### Prepare for Production
-
-1. Change `JWT_SECRET` to strong random key
-2. Set `NODE_ENV=production`
-3. Use managed PostgreSQL database
-4. Set up file backup strategy
-5. Enable HTTPS
-6. Add rate limiting (future)
-
-### Deploy to Render
-
-
-##  API Response Format
-
-### Success Response
+Example:
 
 ```json
 {
-  "message": "Descriptive success message",
-  "data": {},
-  "count": 1
-}
-```
-
-### Error Response
-
-```json
-{
-  "message": "Descriptive error message",
+  "message": "Password must be at least 6 characters",
   "status": "error",
-  "code": "ERROR_CODE"
+  "code": "INTERNAL_ERROR"
 }
 ```
 
----
+Note:
 
-##  Contributing
+- many validation failures return a simple `{ "message": "..." }` response directly from controllers
+- centralized middleware handles shared runtime errors and maps them to structured responses
 
-1. Create feature branch: `git checkout -b feature/xyz`
-2. Make changes with meaningful commits
-3. Push to branch: `git push origin feature/xyz`
-4. Submit Pull Request
+## Edge Cases Handled
 
----
+- invalid teacher ID returns empty live result
+- invalid subject returns empty live result
+- approved but inactive content is not shown
+- pending or rejected content is never exposed publicly
+- missing upload file is rejected
+- wrong file type is rejected
+- spaces-only password is rejected
 
-##  License
+## Security Notes
 
-MIT License - See LICENSE file
+- passwords are hashed with bcrypt
+- JWT is required for protected routes
+- role-based authorization is enforced
+- uploads are type and size validated
+- public APIs are rate limited
 
----
+## Postman Collection
 
-##  Author
+An importable Postman collection is included:
 
-**GrubPac - Educational Content Broadcast Team**
+[content-broadcasting-system.postman_collection.json](./content-broadcasting-system.postman_collection.json)
 
----
+It includes:
 
-##  FAQ
+- signup and login flow
+- upload flow
+- approval flow
+- public API verification
+- invalid signup password test
 
-**Q: Can teachers change content after uploading?**  
-A: Currently, not directly. Re-upload with different content, and reject the old one.
+## Final Notes
 
-**Q: How long does approval take?**  
-A: Instantly when principal clicks approve.
+This project focuses on correctness, business logic, clear structure, and practical backend behavior rather than distributed complexity.
 
-**Q: Can content be visible to multiple subjects?**  
-A: No, each content belongs to one subject only.
+Implemented optional improvement:
 
-**Q: What happens if multiple teachers upload to same subject?**  
-A: Each teacher's content is independent, public API shows teacher-specific content only.
+- rate limiting
 
-**Q: Is there a limit on content uploads?**  
-A: No, but each file is limited to 10MB.
+Not implemented as core features:
 
----
+- Redis caching
+- S3 uploads
+- analytics
+- pagination
 
-**Need Help?** Check `architecture-notes.txt` for detailed system design.

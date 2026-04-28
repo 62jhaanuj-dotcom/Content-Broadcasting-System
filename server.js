@@ -6,73 +6,90 @@ const { pool } = require("./src/config/db");
 
 const PORT = env.PORT || 5000;
 let server;
+let shuttingDown = false;
 
-console.log(`Starting server in ${env.NODE_ENV} mode...`);
+const log = {
+  info: (message) => console.log(message),
+  error: (message, error) => {
+    console.error(message);
+    if (error) {
+      console.error(error);
+    }
+  },
+};
 
-// First check database connection, then start the server.
-pool.query("SELECT NOW()")
-  .then(() => {
-    console.log("Database connected");
+const startServer = async () => {
+  log.info(`Starting server in ${env.NODE_ENV} mode...`);
+
+  try {
+    await pool.query("SELECT 1");
+    log.info("DB connected");
 
     server = app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+      log.info(`Server running on port ${PORT}`);
     });
-  })
-  .catch((err) => {
-    console.error("Database connection failed");
-    console.error(err);
+  } catch (error) {
+    log.error("DB connection failed", error);
     process.exit(1);
-  });
+  }
+};
 
-process.on("uncaughtException", (err) => {
-  console.error("Uncaught exception");
-  console.error(err);
+const gracefulShutdown = async (signal) => {
+  if (shuttingDown) {
+    return;
+  }
+
+  shuttingDown = true;
+  log.info(`${signal} received. Shutting down gracefully...`);
+
+  const forceCloseTimer = setTimeout(() => {
+    log.error("Forced shutdown after timeout");
+    process.exit(1);
+  }, 30000);
+
+  try {
+    if (server) {
+      await new Promise((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve();
+        });
+      });
+
+      log.info("Server closed");
+    }
+
+    await pool.end();
+    log.info("Database connection closed");
+    clearTimeout(forceCloseTimer);
+    process.exit(0);
+  } catch (error) {
+    clearTimeout(forceCloseTimer);
+    log.error("Error during graceful shutdown", error);
+    process.exit(1);
+  }
+};
+
+process.on("uncaughtException", (error) => {
+  log.error("Uncaught exception", error);
   process.exit(1);
 });
 
-process.on("unhandledRejection", (err) => {
-  console.error("Unhandled rejection");
-  console.error(err);
+process.on("unhandledRejection", (error) => {
+  log.error("Unhandled rejection", error);
   process.exit(1);
 });
 
 process.on("SIGTERM", () => {
-  console.log("SIGTERM received - graceful shutdown initiated");
-  gracefulShutdown();
+  void gracefulShutdown("SIGTERM");
 });
 
 process.on("SIGINT", () => {
-  console.log("SIGINT received - graceful shutdown initiated");
-  gracefulShutdown();
+  void gracefulShutdown("SIGINT");
 });
 
-function gracefulShutdown() {
-  console.log("Shutting down gracefully...");
-
-  if (!server) {
-    closeDatabaseAndExit(0);
-    return;
-  }
-
-  server.close(() => {
-    console.log("Server closed");
-    closeDatabaseAndExit(0);
-  });
-
-  setTimeout(() => {
-    console.error("Forced shutdown after timeout");
-    process.exit(1);
-  }, 30000).unref();
-}
-
-async function closeDatabaseAndExit(code) {
-  try {
-    await pool.end();
-    console.log("Database connection closed");
-  } catch (err) {
-    console.error("Error closing database connection:", err);
-  }
-
-  console.log("Graceful shutdown complete");
-  process.exit(code);
-}
+void startServer();

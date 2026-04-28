@@ -1,10 +1,15 @@
 const { Pool } = require("pg");
-require("dotenv").config({ quiet: true });
+const env = require("./env");
+
+const poolConfig = {
+  connectionString: env.DATABASE_URL,
+};
+
+if (env.DB_SSL) {
+  poolConfig.ssl = { rejectUnauthorized: false };
+}
 
 // This creates a PostgreSQL connection pool.
-const pool = new Pool({
-  connectionString: process.env.SUPABASE_DB_URL,
-  ssl: { rejectUnauthorized: false },
-});
+const pool = new Pool(poolConfig);
 
 module.exports = { pool };

@@ -18,7 +18,10 @@ const signup = async (req, res, next) => {
       return res.status(400).json({ message: "Invalid email format" });
     }
 
-    if (!password || password.length < 6) {
+    if (
+      typeof password !== "string" ||
+      password.trim().length < 6
+    ) {
       return res
         .status(400)
         .json({ message: "Password must be at least 6 characters" });

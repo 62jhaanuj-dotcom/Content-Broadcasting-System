@@ -8,7 +8,11 @@ const authMiddleware = (req, res, next) => {
     return res.status(401).json({ message: "No token" });
   }
 
-  const token = authHeader.split(" ")[1];
+  const [scheme, token] = authHeader.split(" ");
+
+  if (scheme !== "Bearer") {
+    return res.status(401).json({ message: "Invalid token format" });
+  }
 
   if (!token) {
     return res.status(401).json({ message: "No token" });

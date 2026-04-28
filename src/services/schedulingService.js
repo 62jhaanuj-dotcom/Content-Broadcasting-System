@@ -4,28 +4,87 @@ const {
 } = require("../models/contentModel");
 const { getScheduleByContentIds } = require("../models/scheduleModel");
 
-// Get the content that should be shown right now.
-const getLiveContentService = async (teacherId, subject = null) => {
-  const now = new Date();
-
-  let activeContents;
-
-  if (subject) {
-    activeContents = await getApprovedLiveContentByTeacherAndSubject(
-      teacherId,
-      subject.toLowerCase(),
-    );
-  } else {
-    activeContents = await getApprovedContentByTeacher(teacherId);
-    activeContents = activeContents.filter((content) => {
-      const startTime = new Date(content.start_time);
-      const endTime = new Date(content.end_time);
-
-      return content.start_time && content.end_time && startTime <= now && endTime >= now;
-    });
+const isWithinActiveWindow = (content, now) => {
+  if (!content.start_time || !content.end_time) {
+    return false;
   }
 
+  const startTime = new Date(content.start_time);
+  const endTime = new Date(content.end_time);
+
+  return startTime <= now && endTime >= now;
+};
+
+const getActiveScheduledContent = async (contents, now = new Date()) => {
+  const activeContents = contents.filter((content) => {
+    return isWithinActiveWindow(content, now);
+  });
+
   if (!activeContents.length) {
+    return null;
+  }
+
+  const schedules = await getScheduleByContentIds(
+    activeContents.map((content) => content.id),
+  );
+
+  if (!schedules.length) {
+    return null;
+  }
+
+  const scheduledContentMap = new Map(
+    activeContents.map((content) => [content.id, content]),
+  );
+  const orderedSchedules = schedules.filter((schedule) => {
+    return scheduledContentMap.has(schedule.content_id);
+  });
+
+  if (!orderedSchedules.length) {
+    return null;
+  }
+
+  const totalDuration = orderedSchedules.reduce((sum, schedule) => {
+    return sum + schedule.duration;
+  }, 0);
+
+  if (totalDuration <= 0) {
+    return null;
+  }
+
+  const currentMinute = Math.floor(now.getTime() / 60000);
+  const currentSlot = currentMinute % totalDuration;
+  let usedDuration = 0;
+
+  for (const schedule of orderedSchedules) {
+    usedDuration += schedule.duration;
+
+    if (currentSlot < usedDuration) {
+      const activeContent = scheduledContentMap.get(schedule.content_id);
+
+      if (!activeContent) {
+        continue;
+      }
+
+      return {
+        content: activeContent,
+        rotationInfo: {
+          totalDuration,
+          currentSlot,
+          contentDuration: schedule.duration,
+          rotationOrder: schedule.rotation_order,
+        },
+      };
+    }
+  }
+
+  return null;
+};
+
+// Get the content that should be shown right now for one teacher and subject.
+const getLiveContentService = async (teacherId, subject) => {
+  const normalizedSubject = subject ? subject.trim().toLowerCase() : null;
+
+  if (!normalizedSubject) {
     return {
       status: "no_content",
       message: "No content available",
@@ -33,82 +92,38 @@ const getLiveContentService = async (teacherId, subject = null) => {
     };
   }
 
-  const contentIds = activeContents.map((content) => content.id);
-  const schedules = await getScheduleByContentIds(contentIds);
+  const contents = await getApprovedLiveContentByTeacherAndSubject(
+    teacherId,
+    normalizedSubject,
+  );
+  const result = await getActiveScheduledContent(contents);
 
-  if (!schedules.length) {
+  if (!result) {
     return {
-      status: "success",
-      message: "Content retrieved",
-      data: activeContents[0],
+      status: "no_content",
+      message: "No content available",
+      data: null,
     };
-  }
-
-  const totalDuration = schedules.reduce((sum, schedule) => {
-    return sum + schedule.duration;
-  }, 0);
-
-  if (totalDuration === 0) {
-    return {
-      status: "success",
-      message: "Content retrieved",
-      data: activeContents[0],
-    };
-  }
-
-  const currentMinute = Math.floor(Date.now() / 60000);
-  const currentSlot = currentMinute % totalDuration;
-  let usedDuration = 0;
-
-  for (const schedule of schedules) {
-    usedDuration += schedule.duration;
-
-    if (currentSlot < usedDuration) {
-      const activeContent = activeContents.find((content) => {
-        return content.id === schedule.content_id;
-      });
-
-      if (activeContent) {
-        return {
-          status: "success",
-          message: "Content retrieved",
-          data: activeContent,
-          rotationInfo: {
-            totalDuration,
-            currentSlot,
-            contentDuration: schedule.duration,
-          },
-        };
-      }
-    }
   }
 
   return {
     status: "success",
     message: "Content retrieved",
-    data: activeContents[0],
+    data: result.content,
+    rotationInfo: result.rotationInfo,
   };
 };
 
-// Get all live content and group it by subject.
-const getTeacherLiveContentBySubject = async (teacherId) => {
+// Get one currently active content item per subject for one teacher.
+const getTeacherLiveContentBySubject = async (teacherId, now = new Date()) => {
   const contents = await getApprovedContentByTeacher(teacherId);
-  const now = new Date();
-
-  const activeContents = contents.filter((content) => {
-    const startTime = new Date(content.start_time);
-    const endTime = new Date(content.end_time);
-
-    return content.start_time && content.end_time && startTime <= now && endTime >= now;
-  });
-
-  if (!activeContents.length) {
-    return {};
-  }
-
   const contentBySubject = {};
 
-  for (const content of activeContents) {
+  for (const content of contents) {
+    if (!isWithinActiveWindow(content, now)) {
+      continue;
+    }
+
     if (!contentBySubject[content.subject]) {
       contentBySubject[content.subject] = [];
     }
@@ -116,20 +131,57 @@ const getTeacherLiveContentBySubject = async (teacherId) => {
     contentBySubject[content.subject].push(content);
   }
 
-  for (const subject in contentBySubject) {
-    const contentIds = contentBySubject[subject].map((content) => content.id);
-    const schedules = await getScheduleByContentIds(contentIds);
+  const activeBySubject = {};
+  const subjects = Object.keys(contentBySubject).sort();
 
-    contentBySubject[subject].rotationInfo = {
-      total: schedules.reduce((sum, schedule) => sum + schedule.duration, 0),
-      count: contentBySubject[subject].length,
+  for (const subject of subjects) {
+    const result = await getActiveScheduledContent(contentBySubject[subject], now);
+
+    if (!result) {
+      continue;
+    }
+
+    activeBySubject[subject] = {
+      content: result.content,
+      rotationInfo: result.rotationInfo,
     };
   }
 
-  return contentBySubject;
+  return activeBySubject;
+};
+
+// Get one currently active content item for a teacher.
+const getTeacherLiveContent = async (teacherId) => {
+  const now = new Date();
+  const activeBySubject = await getTeacherLiveContentBySubject(teacherId, now);
+  const subjects = Object.keys(activeBySubject).sort();
+
+  if (!subjects.length) {
+    return {
+      status: "no_content",
+      message: "No content available",
+      data: null,
+    };
+  }
+
+  const currentMinute = Math.floor(now.getTime() / 60000);
+  const selectedSubject = subjects[currentMinute % subjects.length];
+  const selectedEntry = activeBySubject[selectedSubject];
+
+  return {
+    status: "success",
+    message: "Content retrieved",
+    data: selectedEntry.content,
+    rotationInfo: {
+      ...selectedEntry.rotationInfo,
+      subject: selectedSubject,
+      activeSubjectCount: subjects.length,
+    },
+  };
 };
 
 module.exports = {
   getLiveContentService,
   getTeacherLiveContentBySubject,
+  getTeacherLiveContent,
 };

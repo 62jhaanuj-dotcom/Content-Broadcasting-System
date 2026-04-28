@@ -33,6 +33,12 @@ const uploadContent = async (req, res, next) => {
       return res.status(400).json({ message: "File is required" });
     }
 
+    if ((startTime && !endTime) || (!startTime && endTime)) {
+      return res.status(400).json({
+        message: "Start time and end time must be provided together",
+      });
+    }
+
     // If dates are provided, end time should be after start time.
     if (startTime && endTime) {
       const start = new Date(startTime);
@@ -120,11 +126,9 @@ const getContentDetails = async (req, res, next) => {
       return res.status(404).json({ message: "Content not found" });
     }
 
-    // Teachers can view their own content. They can also view approved content.
+    // Teachers can view only their own content. Principal can view any content.
     if (req.user.role === "teacher" && content.uploaded_by !== req.user.id) {
-      if (content.status !== "approved") {
-        return res.status(403).json({ message: "Access denied" });
-      }
+      return res.status(403).json({ message: "Access denied" });
     }
 
     res.json({
