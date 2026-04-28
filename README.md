@@ -550,7 +550,7 @@ Note:
 
 An importable Postman collection is included:
 
-[content-broadcasting-system.postman_collection.json](./content-broadcasting-system.postman_collection.json)
+[content-broadcasting-system.postman_collection.json](https://gold-rocket-8351828.postman.co/workspace/af4a798e-f775-41d8-b94e-085f78cc9e88/documentation/53638501-2d5068ee-94f7-48dc-9c0a-081fd70361b5)
 
 It includes:
 
