@@ -108,6 +108,10 @@ Scheduling is the most important business rule in this project.
 
 ## Database Schema Overview
 
+
+<img width="933" height="719" alt="image" src="https://github.com/user-attachments/assets/075c2727-6eb7-40c7-8749-ecfb85a78c7a" />
+
+
 users
 
 Stores all system users (teachers & principals).
